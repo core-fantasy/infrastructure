@@ -1,0 +1,137 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Creates the VPC for core fantasy.",
+
+  "Metadata": {
+    "Reference": {"URL": "https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Scenario2.html"}
+  },
+
+  "Parameters": {
+    "VPCName" : {
+      "Type": "String",
+      "Default": "CoreVPC",
+      "Description": "Name of the VPC; used for naming sub-components."
+    }
+  },
+
+  "Resources": {
+    "VPC" : {
+      "Type" : "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.0.0.0/16",
+        "Tags": [
+          {"Key": "Name", 
+           "Value": {"Ref": "VPCName"}}
+        ]
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "InternetGateway"]]}}
+        ]
+      }
+    },
+    "VPCGatewayAttachment": {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "Properties" : {
+        "InternetGatewayId" : {"Ref": "InternetGateway"},
+        "VpcId" : {"Ref": "VPC"}
+      }
+    },
+    "PublicSubnet":{
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock": "10.0.0.0/24",
+        "VpcId" : {"Ref": "VPC"},
+        "Tags": [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PublicSubnet"]]}}
+        ]
+      }
+    },
+    "PrivateSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "CidrBlock": "10.0.1.0/24",
+        "VpcId" : {"Ref": "VPC"},
+        "Tags": [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateSubnet"]]}}
+        ]
+      }
+    },
+    "NATGatewayEIP": {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+        "Domain" : "vpc"
+      }
+    },
+    "NATGateway": {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+        "AllocationId" : {"Fn::GetAtt": ["NATGatewayEIP", "AllocationId"]},
+        "SubnetId" : {"Ref": "PublicSubnet"},
+        "Tags" : [ 
+          {"Key": "Name", 
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "NATGateway"]]}}
+        ]
+      }
+    },
+    "PublicRouteTable": {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : {"Ref": "VPC"},
+        "Tags" : [
+          {"Key": "Name", 
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PublicRouteTable"]]}}
+        ]
+      }
+    },
+    "PublicSubnetRouteTableAssociation": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId": {"Ref": "PublicRouteTable"},
+        "SubnetId": {"Ref": "PublicSubnet"}
+      }
+    },
+    "PublicRouteGateway": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "GatewayId": {"Ref": "InternetGateway"},
+        "RouteTableId": {"Ref": "PublicRouteTable"}
+      },
+      "DependsOn": "InternetGateway"
+    },
+    "PrivateRouteTable": {
+      "Type" : "AWS::EC2::RouteTable",
+      "Properties" : {
+        "VpcId" : {"Ref": "VPC"},
+        "Tags" : [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateRouteTable"]]}}
+        ]
+      }
+    },
+    "PrivateSubnetRouteTableAssociation": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId": {"Ref": "PrivateRouteTable"},
+        "SubnetId": {"Ref": "PrivateSubnet"}
+      }
+    },
+    "PublicRouteNATGateway": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {"Ref": "NATGateway"},
+        "RouteTableId": {"Ref": "PrivateRouteTable"}
+      },
+      "DependsOn": "NATGateway"
+    }
+  }
+}
