@@ -10,7 +10,7 @@
   "Parameters": {
     "VPCName" : {
       "Type": "String",
-      "Default": "CoreVPC",
+      "Default": "core-fantasy",
       "Description": "Name of the VPC; used for naming sub-components."
     }
   },
@@ -42,45 +42,97 @@
         "VpcId" : {"Ref": "VPC"}
       }
     },
-    "PublicSubnet":{
+    
+    "PublicSubnetA":{
       "Type" : "AWS::EC2::Subnet",
       "Properties" : {
+        "AvailabilityZone" : { 
+          "Fn::Select": ["0", {"Fn::GetAZs": {"Ref": "AWS::Region"}}]},
         "CidrBlock": "10.0.0.0/24",
         "VpcId" : {"Ref": "VPC"},
         "Tags": [
           {"Key": "Name",
-           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PublicSubnet"]]}}
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PublicSubnetA"]]}}
         ]
       }
     },
-    "PrivateSubnet": {
+    "PublicSubnetB":{
       "Type" : "AWS::EC2::Subnet",
       "Properties" : {
+        "AvailabilityZone" : { 
+          "Fn::Select": ["1", {"Fn::GetAZs": {"Ref": "AWS::Region"}}]},
         "CidrBlock": "10.0.1.0/24",
         "VpcId" : {"Ref": "VPC"},
         "Tags": [
           {"Key": "Name",
-           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateSubnet"]]}}
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PublicSubnetB"]]}}
         ]
       }
     },
-    "NATGatewayEIP": {
+    
+    "PrivateSubnetA": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { 
+          "Fn::Select": ["0", {"Fn::GetAZs": {"Ref": "AWS::Region"}}]},
+        "CidrBlock": "10.0.5.0/24",
+        "VpcId" : {"Ref": "VPC"},
+        "Tags": [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateSubnetA"]]}}
+        ]
+      }
+    },
+    "PrivateSubnetB": {
+      "Type" : "AWS::EC2::Subnet",
+      "Properties" : {
+        "AvailabilityZone" : { 
+          "Fn::Select": ["1", {"Fn::GetAZs": {"Ref": "AWS::Region"}}]},
+        "CidrBlock": "10.0.6.0/24",
+        "VpcId" : {"Ref": "VPC"},
+        "Tags": [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateSubnetB"]]}}
+        ]
+      }
+    },
+    
+    "NATGatewayEIPA": {
       "Type" : "AWS::EC2::EIP",
       "Properties" : {
         "Domain" : "vpc"
       }
     },
-    "NATGateway": {
+    "NATGatewayEIPB": {
+      "Type" : "AWS::EC2::EIP",
+      "Properties" : {
+        "Domain" : "vpc"
+      }
+    },
+    
+    "NATGatewayA": {
       "Type" : "AWS::EC2::NatGateway",
       "Properties" : {
-        "AllocationId" : {"Fn::GetAtt": ["NATGatewayEIP", "AllocationId"]},
-        "SubnetId" : {"Ref": "PublicSubnet"},
+        "AllocationId" : {"Fn::GetAtt": ["NATGatewayEIPA", "AllocationId"]},
+        "SubnetId" : {"Ref": "PublicSubnetA"},
         "Tags" : [ 
           {"Key": "Name", 
-           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "NATGateway"]]}}
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "NATGatewayA"]]}}
         ]
       }
     },
+    "NATGatewayB": {
+      "Type" : "AWS::EC2::NatGateway",
+      "Properties" : {
+        "AllocationId" : {"Fn::GetAtt": ["NATGatewayEIPB", "AllocationId"]},
+        "SubnetId" : {"Ref": "PublicSubnetB"},
+        "Tags" : [ 
+          {"Key": "Name", 
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "NATGatewayB"]]}}
+        ]
+      }
+    },
+    
     "PublicRouteTable": {
       "Type" : "AWS::EC2::RouteTable",
       "Properties" : {
@@ -91,11 +143,18 @@
         ]
       }
     },
-    "PublicSubnetRouteTableAssociation": {
+    "PublicSubnetRouteTableAssociationA": {
       "Type" : "AWS::EC2::SubnetRouteTableAssociation",
       "Properties" : {
         "RouteTableId": {"Ref": "PublicRouteTable"},
-        "SubnetId": {"Ref": "PublicSubnet"}
+        "SubnetId": {"Ref": "PublicSubnetA"}
+      }
+    },
+    "PublicSubnetRouteTableAssociationB": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId": {"Ref": "PublicRouteTable"},
+        "SubnetId": {"Ref": "PublicSubnetB"}
       }
     },
     "PublicRouteGateway": {
@@ -107,31 +166,87 @@
       },
       "DependsOn": "InternetGateway"
     },
-    "PrivateRouteTable": {
+    
+    "PrivateRouteTableA": {
       "Type" : "AWS::EC2::RouteTable",
       "Properties" : {
         "VpcId" : {"Ref": "VPC"},
         "Tags" : [
           {"Key": "Name",
-           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateRouteTable"]]}}
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateRouteTableA"]]}}
         ]
       }
     },
-    "PrivateSubnetRouteTableAssociation": {
-      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+    "PrivateRouteTableB": {
+      "Type" : "AWS::EC2::RouteTable",
       "Properties" : {
-        "RouteTableId": {"Ref": "PrivateRouteTable"},
-        "SubnetId": {"Ref": "PrivateSubnet"}
+        "VpcId" : {"Ref": "VPC"},
+        "Tags" : [
+          {"Key": "Name",
+           "Value": {"Fn::Join": ["-", [{"Ref": "VPCName"}, "PrivateRouteTableB"]]}}
+        ]
       }
     },
-    "PublicRouteNATGateway": {
+    "PrivateSubnetRouteTableAssociationA": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId": {"Ref": "PrivateRouteTableA"},
+        "SubnetId": {"Ref": "PrivateSubnetA"}
+      }
+    },
+    "PrivateSubnetRouteTableAssociationB": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+        "RouteTableId": {"Ref": "PrivateRouteTableB"},
+        "SubnetId": {"Ref": "PrivateSubnetB"}
+      }
+    },
+
+    "PublicRouteNATGatewayA": {
       "Type" : "AWS::EC2::Route",
       "Properties" : {
         "DestinationCidrBlock": "0.0.0.0/0",
-        "NatGatewayId": {"Ref": "NATGateway"},
-        "RouteTableId": {"Ref": "PrivateRouteTable"}
+        "NatGatewayId": {"Ref": "NATGatewayA"},
+        "RouteTableId": {"Ref": "PrivateRouteTableA"}
       },
-      "DependsOn": "NATGateway"
+      "DependsOn": "NATGatewayA"
+    },
+    "PublicRouteNATGatewayB": {
+      "Type" : "AWS::EC2::Route",
+      "Properties" : {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {"Ref": "NATGatewayB"},
+        "RouteTableId": {"Ref": "PrivateRouteTableB"}
+      },
+      "DependsOn": "NATGatewayB"
+    }
+  },
+
+  "Outputs": {
+    "VpcId": {
+      "Description": "ID of the core fantasy VPC",
+      "Value": {"Ref": "VPC"},
+      "Export": {"Name": "VpcId"}
+    },
+    "PrivateSubnetIdA": {
+      "Description": "ID of private subnet A in the VPC",
+      "Value": {"Ref": "PrivateSubnetA"},
+      "Export": { "Name": "PrivateSubnetIdA"}
+    },
+    "PrivateSubnetIdB": {
+      "Description": "ID of private subnet B in the VPC",
+      "Value": {"Ref": "PrivateSubnetB"},
+      "Export": {"Name": "PrivateSubnetIdB"}
+    },
+    "PublicSubnetIdA": {
+      "Description": "ID of public subnet A in the VPC",
+      "Value": {"Ref": "PublicSubnetA"},
+      "Export": {"Name": "PublicSubnetIdA"}
+    },
+    "PublicSubnetIdB": {
+      "Description": "ID of public subnet B in the VPC",
+      "Value": {"Ref": "PublicSubnetB"},
+      "Export": {"Name": "PublicSubnetIdB"}
     }
   }
 }

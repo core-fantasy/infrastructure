@@ -1,0 +1,60 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "Creates the Kubernetes manager nodes.",
+
+  "Metadata": {
+  },
+
+  "Resources": {
+    
+    "CoreFantasyEKSIAMRole": {
+      "Type" : "AWS::IAM::Role",
+      "Properties" : {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "eks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+          "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"]
+      }
+    },
+
+    "CoreFantasyEKSControlPlaneSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupName": "CoreFantasyEKSControlPlaneSecurityGroup",
+        "GroupDescription": "EKS Control Plane security group",
+        "VpcId": {"Fn::ImportValue": "VpcId"}
+      }
+    },
+
+    "CoreFantasyEKSCluster": {
+      "Type" : "AWS::EKS::Cluster",
+      "Properties" : {
+        "Name" : "CoreEKSCluster",
+        "ResourcesVpcConfig" : {
+          "SecurityGroupIds" : [
+            {"Ref": "CoreFantasyEKSControlPlaneSecurityGroup"}
+          ],
+          "SubnetIds": [
+            {"Fn::ImportValue": "PrivateSubnetIdA"},
+            {"Fn::ImportValue": "PrivateSubnetIdB"},
+            {"Fn::ImportValue": "PublicSubnetIdA"},
+            {"Fn::ImportValue": "PublicSubnetIdB"}
+          ]
+        },
+        "RoleArn" : {"Fn::GetAtt": ["CoreFantasyEKSIAMRole", "Arn"]},
+      }
+    }
+  }
+}
