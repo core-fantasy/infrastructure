@@ -30,6 +30,15 @@
                                           "/Kube.json"]]}
       },
       "DependsOn": "VPCStack"
+    },
+    "HttpdStack": {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL": {"Fn::Join": ["", ["https://s3.amazonaws.com/", 
+                                          {"Ref": "BucketName"},
+                                          "/Httpd.json"]]}
+      },
+      "DependsOn": ["VPCStack", "KubeStack"]
     }
   }
 }
