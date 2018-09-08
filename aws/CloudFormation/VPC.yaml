@@ -1,0 +1,219 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Creates the VPC for core fantasy.
+Metadata:
+  Reference:
+    URL: https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_Scenario2.html
+Parameters:
+  VPCName:
+    Type: String
+    Default: core-fantasy
+    Description: Name of the VPC; used for naming sub-components.
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Ref 'VPCName'
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - InternetGateway
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref 'InternetGateway'
+      VpcId: !Ref 'VPC'
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - '0'
+        - !GetAZs
+          Ref: AWS::Region
+      CidrBlock: 10.0.0.0/24
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PublicSubnetA
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - '1'
+        - !GetAZs
+          Ref: AWS::Region
+      CidrBlock: 10.0.1.0/24
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PublicSubnetB
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - '0'
+        - !GetAZs
+          Ref: AWS::Region
+      CidrBlock: 10.0.5.0/24
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PrivateSubnetA
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select
+        - '1'
+        - !GetAZs
+          Ref: AWS::Region
+      CidrBlock: 10.0.6.0/24
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PrivateSubnetB
+  NATGatewayEIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NATGatewayEIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NATGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt 'NATGatewayEIPA.AllocationId'
+      SubnetId: !Ref 'PublicSubnetA'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - NATGatewayA
+  NATGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt 'NATGatewayEIPB.AllocationId'
+      SubnetId: !Ref 'PublicSubnetB'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - NATGatewayB
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PublicRouteTable
+  PublicSubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PublicRouteTable'
+      SubnetId: !Ref 'PublicSubnetA'
+  PublicSubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PublicRouteTable'
+      SubnetId: !Ref 'PublicSubnetB'
+  PublicRouteGateway:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref 'InternetGateway'
+      RouteTableId: !Ref 'PublicRouteTable'
+    DependsOn: InternetGateway
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PrivateRouteTableA
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'VPC'
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref 'VPCName'
+              - PrivateRouteTableB
+  PrivateSubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PrivateRouteTableA'
+      SubnetId: !Ref 'PrivateSubnetA'
+  PrivateSubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref 'PrivateRouteTableB'
+      SubnetId: !Ref 'PrivateSubnetB'
+  PublicRouteNATGatewayA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref 'NATGatewayA'
+      RouteTableId: !Ref 'PrivateRouteTableA'
+    DependsOn: NATGatewayA
+  PublicRouteNATGatewayB:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: '0.0.0.0/0'
+      NatGatewayId: !Ref 'NATGatewayB'
+      RouteTableId: !Ref 'PrivateRouteTableB'
+    DependsOn: NATGatewayB
+Outputs:
+  VpcId:
+    Description: ID of the core fantasy VPC
+    Value: !Ref 'VPC'
+    Export:
+      Name: VpcId
+  PrivateSubnetIdA:
+    Description: ID of private subnet A in the VPC
+    Value: !Ref 'PrivateSubnetA'
+    Export:
+      Name: PrivateSubnetIdA
+  PrivateSubnetIdB:
+    Description: ID of private subnet B in the VPC
+    Value: !Ref 'PrivateSubnetB'
+    Export:
+      Name: PrivateSubnetIdB
+  PublicSubnetIdA:
+    Description: ID of public subnet A in the VPC
+    Value: !Ref 'PublicSubnetA'
+    Export:
+      Name: PublicSubnetIdA
+  PublicSubnetIdB:
+    Description: ID of public subnet B in the VPC
+    Value: !Ref 'PublicSubnetB'
+    Export:
+      Name: PublicSubnetIdB

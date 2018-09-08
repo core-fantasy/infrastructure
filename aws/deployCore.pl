@@ -142,7 +142,7 @@ print "$printCommand $stackName stack.\n";
 my $command = "aws cloudformation $cloudFormationCommand " . 
   "--stack-name $stackName " . 
   "--capabilities CAPABILITY_IAM " .
-  "--template-url https://s3.amazonaws.com/$bucketName/CoreFantasy.json " .
+  "--template-url https://s3.amazonaws.com/$bucketName/CoreFantasy.yaml " .
   "--parameters ParameterKey=BucketName,ParameterValue=$bucketName,UsePreviousValue=false";
 
 $status = system($command);
