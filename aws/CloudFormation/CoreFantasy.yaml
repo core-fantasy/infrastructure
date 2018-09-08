@@ -14,7 +14,7 @@ Resources:
         - ''
         - - https://s3.amazonaws.com/
           - !Ref 'BucketName'
-          - /VPC.json
+          - /VPC.yaml
   KubeStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -22,7 +22,7 @@ Resources:
         - ''
         - - https://s3.amazonaws.com/
           - !Ref 'BucketName'
-          - /Kube.json
+          - /Kube.yaml
     DependsOn: VPCStack
   HttpdStack:
     Type: AWS::CloudFormation::Stack
@@ -31,7 +31,7 @@ Resources:
         - ''
         - - https://s3.amazonaws.com/
           - !Ref 'BucketName'
-          - /Httpd.json
+          - /Httpd.yaml
     DependsOn:
       - VPCStack
       - KubeStack

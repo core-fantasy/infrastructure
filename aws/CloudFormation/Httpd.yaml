@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack for web server.
+# TODO: change over to use SSL: DNS, certs, https, 443, etc.
 Resources:
   HttpdELB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -11,6 +12,9 @@ Resources:
   HttpdELBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'HttpdELBTargetGroup'
+          Type: forward
       LoadBalancerArn: !Ref 'HttpdELB'
       Port: 80
       Protocol: HTTP
@@ -23,7 +27,6 @@ Resources:
       Conditions:
         - Field: path-pattern
           Values:
-            - /
             - /*
       ListenerArn: !Ref 'HttpdELBListener'
       Priority: 1
@@ -37,12 +40,12 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       DesiredCapacity: '2'
-      LaunchConfigurationName: HttpdLaunchConfig
+      LaunchConfigurationName: !Ref 'HttpdLaunchConfig'
       MaxSize: '5'
       MinSize: '2'
-      TargetGroupARNS:
+      TargetGroupARNs:
         - !Ref 'HttpdELBTargetGroup'
-      VPCZoneIdentifiers:
+      VPCZoneIdentifier:
         - !ImportValue 'PublicSubnetIdA'
         - !ImportValue 'PublicSubnetIdB'
   HttpdLaunchConfig:
@@ -59,10 +62,10 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: HttpdSecurityGroup
+      GroupDescription: Allows incoming HTTP traffic
       SecurityGroupIngress:
         CidrIp: '0.0.0.0/0'
         FromPort: 80
-        GroupDescription: Allow HTTP traffic
         IpProtocol: tcp
         ToPort: 80
       VpcId: !ImportValue 'VpcId'
