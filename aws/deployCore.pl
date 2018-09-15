@@ -4,9 +4,10 @@ use strict;
 use warnings;
 
 use File::Find;
+use File::Which;
 use JSON;
 
-my $awsCli = "/usr/bin/aws";
+my $awsCli = which("aws");
 
 if (! -x $awsCli) {
   die "$0: aws cli tool not installed. Exiting.";
@@ -29,6 +30,8 @@ if (! $awsConfigured) {
   die "$0: awc cli tool is not configured. Run '$awsCli configure'. Exiting."
 }
 
+my $defaultKeyPair = &getDefaultKeyPair();
+
 if ($region eq "") {
   print "Enter AWS region: ";
   chomp($region = <>);
@@ -50,6 +53,12 @@ print "Enter CloudFormation stack name [$defaultStack]: ";
 chomp(my $stackName = <>);
 if ($stackName eq "") {
   $stackName = $defaultStack;
+}
+
+print "Enter EC2 Key Pair name [$defaultKeyPair]: ";
+chomp(my $ec2KeyPairName = <>);
+if ($ec2KeyPairName eq "") {
+  $ec2KeyPairName = $defaultKeyPair;
 }
 
 my $createBucket = 0;
@@ -139,11 +148,13 @@ foreach my $stackHashRef (@stacks) {
 }
 
 print "$printCommand $stackName stack.\n";
-my $command = "aws cloudformation $cloudFormationCommand " . 
+my $command = "$awsCli cloudformation $cloudFormationCommand " .
   "--stack-name $stackName " . 
   "--capabilities CAPABILITY_IAM " .
   "--template-url https://s3.amazonaws.com/$bucketName/CoreFantasy.yaml " .
-  "--parameters ParameterKey=BucketName,ParameterValue=$bucketName,UsePreviousValue=false";
+  "--parameters" .
+  " ParameterKey=BucketName,ParameterValue=$bucketName,UsePreviousValue=false".
+  " ParameterKey=EC2KeyPairName,ParameterValue=$ec2KeyPairName,UsePreviousValue=false";
 
 $status = system($command);
 if (0 != $status) {
@@ -151,3 +162,17 @@ if (0 != $status) {
 }
 
 exit 0;
+
+sub getDefaultKeyPair {
+ my $keyPairsJson = `$awsCli ec2 describe-key-pairs`;
+ my $keyPairsObj = decode_json $keyPairsJson;
+
+ my %keyPairsHash = %$keyPairsObj;
+ my @keyPairs = @{$keyPairsHash{"KeyPairs"}};
+
+ if (scalar(@keyPairs) == 0) {
+   return "<No Existing Key Pairs>";
+ }
+
+ return %{$keyPairs[0]}{"KeyName"};
+}

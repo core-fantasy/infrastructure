@@ -4,6 +4,9 @@ Parameters:
   BucketName:
     Type: String
     Description: Bucket name in which deployment files reside.
+  EC2KeyPairName:
+    Type: String
+    Description: EC2 Key pair name
 Resources:
   VPCStack:
     Type: AWS::CloudFormation::Stack
@@ -15,6 +18,18 @@ Resources:
         - - https://s3.amazonaws.com/
           - !Ref 'BucketName'
           - /VPC.yaml
+  BastionStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        BucketName: !Ref 'BucketName'
+        EC2KeyPairName: !Ref 'EC2KeyPairName'
+      TemplateURL: !Join
+      - ''
+      - - https://s3.amazonaws.com/
+        - !Ref 'BucketName'
+        - /Bastion.yaml
+    DependsOn: VPCStack
   KubeStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -27,6 +42,8 @@ Resources:
   HttpdStack:
     Type: AWS::CloudFormation::Stack
     Properties:
+      Parameters:
+        BucketName: !Ref 'BucketName'
       TemplateURL: !Join
         - ''
         - - https://s3.amazonaws.com/
