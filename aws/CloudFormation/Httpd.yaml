@@ -70,7 +70,7 @@ Resources:
             VolumeType: gp2
             DeleteOnTermination: true
       IamInstanceProfile: !ImportValue NodeInstanceProfile
-      ImageId: ami-08cab282f9979fc7a
+      ImageId: ami-0a54c984b9f908c81    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
       InstanceMonitoring: false
       InstanceType: t3.small
       LaunchConfigurationName: HttpdLaunchConfig

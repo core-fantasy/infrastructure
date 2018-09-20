@@ -34,7 +34,9 @@ Resources:
             Statement:
               - Action:
                   - s3:GetObject
-                Resource: !Sub 'arn:aws:s3:::${BucketName}/scripts/*'
+                Resource:
+                  - !Sub 'arn:aws:s3:::${BucketName}/scripts/*'
+                  - !Sub 'arn:aws:s3:::${BucketName}/etc/*'
                 Effect: Allow
           PolicyName: bastion-s3-policy
         - PolicyDocument:
@@ -118,12 +120,19 @@ Resources:
               owner: root
               group: root
               authentication: S3AccessCreds
+            /tmp/BastionBanner.txt:
+              source: !Sub 'https://${BucketName}.s3.amazonaws.com/etc/BastionBanner.txt'
+              mode: '000440'
+              owner: root
+              group: root
+              authentication: S3AccessCreds
           commands:
             b-bootstrap:
               command: !Join
                 - ''
-                - - ./tmp/bastion_bootstrap.sh
-                  - ' --banner "core-fantasy ssh bastion"'
+                - - /tmp/bastion_bootstrap.sh
+                  - ' --banner '
+                  - !Sub 'file:///tmp/BastionBanner.txt'  # bootstrap uses curl, which can't authorize to S3
                   - ' --enable true'
                   - ' --tcp-forwarding false'
                   - ' --x11-forwarding false'
@@ -131,7 +140,7 @@ Resources:
       AssociatePublicIpAddress: 'true'
       KeyName: !Ref 'EC2KeyPairName'
       IamInstanceProfile: !Ref 'BastionHostProfile'
-      ImageId: 'ami-6cd6f714'
+      ImageId: 'ami-a0cfeed8'   # Need to use AMI from AWS website listed above.
       SecurityGroups:
         - !Ref 'BastionSecurityGroup'
       InstanceType: 't2.micro'
@@ -141,7 +150,10 @@ Resources:
           - - "#!/bin/bash\n"
             - "set -x\n"
             - "export PATH=$PATH:/usr/local/bin\n"
+            - "# MJA - Beginning of custom code\n"
+            - "whoami\n"
             - "sudo yum update -y\n"
+            - "# MJA - End of custom code\n"
             - "which pip &> /dev/null\n"
             - "if [ $? -ne 0 ] ; then\n"
             - "    echo \"PIP NOT INSTALLED\"\n"
