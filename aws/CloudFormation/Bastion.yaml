@@ -134,8 +134,8 @@ Resources:
                   - ' --banner '
                   - !Sub 'file:///tmp/BastionBanner.txt'  # bootstrap uses curl, which can't authorize to S3
                   - ' --enable true'
-                  - ' --tcp-forwarding false'
-                  - ' --x11-forwarding false'
+                  - ' --tcp-forwarding true'
+                  - ' --x11-forwarding true'
     Properties:
       AssociatePublicIpAddress: 'true'
       KeyName: !Ref 'EC2KeyPairName'

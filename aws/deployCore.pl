@@ -161,6 +161,8 @@ if (0 != $status) {
   die "$0: stack creation failed. Exiting.\n";
 }
 
+print "\n\n***** When stack is fully deployed, run postDeploy.pl ******\n\n";
+
 exit 0;
 
 sub getDefaultKeyPair {

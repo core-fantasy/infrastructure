@@ -39,16 +39,17 @@ Resources:
           - !Ref 'BucketName'
           - /Kube.yaml
     DependsOn: VPCStack
-  HttpdStack:
+  WebServerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
         BucketName: !Ref 'BucketName'
+        EC2KeyPairName: !Ref 'EC2KeyPairName'
       TemplateURL: !Join
         - ''
         - - https://s3.amazonaws.com/
           - !Ref 'BucketName'
-          - /Httpd.yaml
+          - /WebServer.yaml
     DependsOn:
       - VPCStack
       - KubeStack
