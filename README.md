@@ -1,17 +1,23 @@
 # infrastructure
 Infrastructure data
 
+This project contains files to stand up the infrastructure needed for core-fantasy.
+Right now this means AWS.
 
-## Configuring kubectl to work with EKS
+## AWS
+In the AWS directory is a script, **deployStack.pl**, which is used to upload
+the Cloudformation files to an S3 bucket and deploy the stack.
+
+This assumes you've set up **kubectl** to work with EKS (see below).
+
+Once the stack is deployed, the **postDeploy.pl** script is used to generate
+useful files (ssh config, Kubernetes config) and issue a command to the 
+Kubernetes worker nodes to join the Kubernetes cluster (I couldn't figure out
+how to do this automatically).
+
+### Configuring kubectl to work with EKS
 See
 * https://docs.aws.amazon.com/eks/latest/userguide/getting-started.html#eks-configure-kubectl
-
-Update the data in .kube/config-CoreFantasyEKSCluster with data for the EKS cluster.
-* cluster and certificate data can be found on EKS page in the AWS Console
-* cluster ID in call to aws-iam-authenticator (-i argument) is the cluster ID 
-(i.e., "CoreFantasyEKSCluster") also found on the EKS page
- 
-(TODO: figure out a way to generate this info during deployment)
 
 
 ## Dependencies
@@ -21,24 +27,6 @@ Update the data in .kube/config-CoreFantasyEKSCluster with data for the EKS clus
   * [File::Which][Which] module
 
 ## Miscellany
-### SSH Bastion
-To access private subnet EC2 instances, set **.ssh/config** to:
-```
-# Basion host
-Host 54.201.206.106
-  Hostname 54.201.206.106
-  User ec2-user
-  IdentityFile <Path to AWS Key pair, local machine>
- 
-# Pivate Subnet EC2 IP
-# To connect to the machine run: ssh -A 10.0.6.209
-Host 10.0.6.209
-  Hostname 10.0.6.209
-  User ec2-user
-  IdentityFile <Path to AWS Key Pair, local machine>
-  ProxyCommand ssh 54.201.206.106 nc %h %p 2> /dev/null
-```
-(There are better ways to do this.)
 ### Banners
 Banners generated [here][banner] using "JS Stick Letters" font.
 

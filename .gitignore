@@ -1,3 +1,5 @@
 *~
 *iml
 .idea
+aws/generated/*
+!aws/generated/.gitkeep  # Just to keep the folder

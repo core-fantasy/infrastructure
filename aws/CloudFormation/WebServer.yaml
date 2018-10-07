@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack for web server.
+# For debugging ELB, https://serverfault.com/questions/469094/issues-with-ec2-elastic-load-balancer-dns-and-routing
 # TODO: change over to use SSL: DNS, certs, https, 443, etc.
 Parameters:
   BucketName:
@@ -9,15 +10,33 @@ Parameters:
     Type: String
     Description: EC2 Key pair name
 Resources:
-  # TODO: See: https://serverfault.com/questions/469094/issues-with-ec2-elastic-load-balancer-dns-and-routing
   WebServerELB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Scheme: internet-facing
-      # TODO: add security group, then update WebServer security group so that port 80 only comes from ELB SG, 22 from bastion SG
+      SecurityGroups:
+        - Ref: WebserverELBSecurityGroup
       Subnets:
         - !ImportValue 'PublicSubnetIdA'
         - !ImportValue 'PublicSubnetIdB'
+  WebserverELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebserverELBSecurityGroup
+      GroupDescription: Security group for the webserver ELB
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+      VpcId: !ImportValue 'VpcId'
   WebServerELBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -106,9 +125,9 @@ Resources:
             - |
               #!/bin/bash
               yum update -y
-              #/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WebServerLaunchConfig
-              #cd /tmp
-              #cat WebserverBanner.txt > /etc/ssh_banner
+              /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WebServerLaunchConfig
+              cd /tmp
+              cat WebserverBanner.txt > /etc/ssh_banner
               # TODO: add for tags: --kubelet-extra-args --node-labels=mykey=myvalue,nodegroup=NodeGroup1
               # See https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
               #     https://aws.amazon.com/blogs/opensource/improvements-eks-worker-node-provisioning/
@@ -117,7 +136,8 @@ Resources:
                      --stack  ${AWS::StackName} \
                      --resource WebServerAutoScaleGroup \
                      --region ${AWS::Region}
-              python -m python -m SimpleHTTPServer 80 2>&1 > /tmp/SimpleHttp.log &   # Temporary until httpd running
+              # TODO: remove once httpd running
+              python -m SimpleHTTPServer 80 2>&1 > /tmp/SimpleHttp.log &
             - EKSClusterName:
                 Fn::ImportValue:
                   EKSClusterName
@@ -127,16 +147,17 @@ Resources:
       GroupName: WebServerSecurityGroup
       GroupDescription: Allows incoming HTTP & SSH traffic
       SecurityGroupIngress:
-        - CidrIp: '0.0.0.0/0'
-          FromPort: 80
+        - FromPort: 80
           IpProtocol: tcp
           ToPort: 80
-        - CidrIp: '0.0.0.0/0'
+          SourceSecurityGroupId:
+            Ref: "WebserverELBSecurityGroup"
+        - CidrIp: '0.0.0.0/0'   # TODO: block all access except from Bastion
           FromPort: 22
           IpProtocol: tcp
           ToPort: 22
-        - IpProtocol: icmp
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: icmp
           FromPort: '-1'
           ToPort: '-1'
-          CidrIp: 0.0.0.0/0
       VpcId: !ImportValue 'VpcId'
