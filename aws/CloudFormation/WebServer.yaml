@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack for web server.
 # For debugging ELB, https://serverfault.com/questions/469094/issues-with-ec2-elastic-load-balancer-dns-and-routing
-# TODO: change over to use SSL: DNS, certs, https, 443, etc.
+# TODO: change over to use SSL: DNS, certs, https, 443, etc. Update helm chart, too.
 Parameters:
   BucketName:
     Type: String
@@ -128,16 +128,13 @@ Resources:
               /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WebServerLaunchConfig
               cd /tmp
               cat WebserverBanner.txt > /etc/ssh_banner
-              # TODO: add for tags: --kubelet-extra-args --node-labels=mykey=myvalue,nodegroup=NodeGroup1
               # See https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
               #     https://aws.amazon.com/blogs/opensource/improvements-eks-worker-node-provisioning/
-              /etc/eks/bootstrap.sh ${EKSClusterName}
+              /etc/eks/bootstrap.sh ${EKSClusterName} --kubelet-extra-args --node-labels=node-type=webserver
               /opt/aws/bin/cfn-signal --exit-code $? \
                      --stack  ${AWS::StackName} \
                      --resource WebServerAutoScaleGroup \
                      --region ${AWS::Region}
-              # TODO: remove once httpd running
-              python -m SimpleHTTPServer 80 2>&1 > /tmp/SimpleHttp.log &
             - EKSClusterName:
                 Fn::ImportValue:
                   EKSClusterName
