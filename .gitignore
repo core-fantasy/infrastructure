@@ -3,3 +3,5 @@
 .idea
 aws/generated/*
 !aws/generated/.gitkeep  # Just to keep the folder
+helm/**/charts/*.tgz
+!helm/**/charts/.gitkeep

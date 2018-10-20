@@ -4,8 +4,19 @@ use strict;
 use warnings;
 
 use File::Which;
-use File::Temp qw/ tempfile/;
+use File::Temp qw/tempfile/;
+use MIME::Base64;
 use JSON qw/decode_json/;
+use Term::ReadKey;
+
+##
+##
+##  IMPORTANT!!!!
+##
+##  Make sure the steps in this script are idempotent!
+##
+##
+
 
 my $awsCli = which("aws");
 
@@ -13,7 +24,13 @@ if (! -x $awsCli) {
   die "$0: aws cli tool not installed. Exiting.";
 }
 
+my $kubectlCli = which("kubectl");
+if (! -x $kubectlCli) {
+  die "$0: kubectl tool not installed Exiting.";
+}
+
 my $workingDir = "generated";
+my $tempFileTemplate = "postDeployXXXXX";
 
 my $json = `aws ec2 describe-vpcs --filters Name=tag:Name,Values=core-fantasy`;
 my $vpcs = decode_json($json);
@@ -33,12 +50,52 @@ foreach my $ec2Reservation (@ec2Reservations) {
   }
 }
 
+my $kubernetesConfigFile = "";
+
 &generateSSHConfig();
 &generateKubeConfig();
 # Must be after Kube config otherwise kubectl can't contact cluster
 &joinKubeCluster();
+&installTiller();
+&createKubernetesSecrets();
 
 exit 0;
+
+sub createKubernetesSecrets() {
+  print "Installing secrets to the Kubernets cluster...\n";
+
+  my $username = "corefantasy";
+
+  print "Enter hub.docker.com password for user $username: ";
+  ReadMode('noecho'); # don't echo
+  chomp(my $password = <STDIN>);
+  ReadMode(0);
+  print "\n";  # Just to pretty up things.
+
+  $username = encode_base64($username);
+  $password = encode_base64($password);
+
+  my $dockerHubSecret = qq{
+apiVersion: v1
+kind: Secret
+metadata:
+  name: docker-hub-credentials
+type: Opaque
+data:
+  username: $username
+  password: $password
+  };
+
+  my ($fh, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
+  writeToFile($filename, $dockerHubSecret);
+
+  system("$kubectlCli create -f $filename");
+
+  # Lame-ass security
+  writeToFile($filename, "");
+  $dockerHubSecret = "";
+  $password = "";
+}
 
 sub generateKubeConfig() {
 
@@ -73,7 +130,8 @@ sub generateKubeConfig() {
   my $clusterCA = $clusterObj{"certificateAuthority"}{"data"};
   my $clusterID = $clusterObj{"name"};
 
-  my $kubeConfig = qq{
+  my $context = "aws";
+  my $kubeConfigData = qq{
 apiVersion: v1
 clusters:
 - cluster:
@@ -84,8 +142,8 @@ contexts:
 - context:
     cluster: kubernetes
     user: aws
-  name: aws
-current-context: aws
+  name: $context
+current-context: $context
 kind: Config
 preferences: {}
 users:
@@ -104,9 +162,12 @@ users:
         # - name: AWS_PROFILE
         #   value: "<aws-profile>"
 };
-  my $configFile = "$ENV{HOME}/.kube/config-${clusterName}";
-  writeToFile($configFile, $kubeConfig);
-  print "Kubernetes cluster config file written to: $configFile\n";
+  $kubernetesConfigFile = "$ENV{HOME}/.kube/config-${clusterName}";
+  writeToFile($kubernetesConfigFile, $kubeConfigData);
+  print "Kubernetes cluster config file written to: $kubernetesConfigFile\n";
+
+  print "Setting Kubernetes context to '$context'\n";
+  system("$kubectlCli --kubeconfig='$kubernetesConfigFile' config set-context aws")
 }
 
 sub generateSSHConfig() {
@@ -181,6 +242,18 @@ Host WebserverB
   print "  --> Copy this to ~/.ssh/config or append contents to same file.\n";
 }
 
+sub installTiller() {
+  print "Installing Tiller onto the Kubernetes cluster...\n";
+
+  system("helm init");
+
+  # Give tiller some access or something. Without this 'helm install...' gives a namespace error
+  system("$kubectlCli create serviceaccount --namespace kube-system tiller");
+  system("$kubectlCli create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller");
+  system("$kubectlCli patch deploy --namespace kube-system tiller-deploy -p '{\"spec\":{\"template\":{\"spec\":{\"serviceAccount\":\"tiller\"}}}}'");
+}
+
+
 sub joinKubeCluster() {
 
   print "Instructing Kube worker nodes to join cluster...\n";
@@ -212,9 +285,9 @@ data:
         - system:nodes
     };
 
-  my ($fh, $filename) = tempfile();
+  my ($fh, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
   writeToFile($filename, $configMap);
-  system("kubectl apply -f $filename");
+  system("$kubectlCli apply -f $filename");
 }
 
 sub writeToFile() {
