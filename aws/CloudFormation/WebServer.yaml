@@ -10,40 +10,13 @@ Parameters:
     Type: String
     Description: EC2 Key pair name
 Resources:
-  WebServerELB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Scheme: internet-facing
-      SecurityGroups:
-        - Ref: WebserverELBSecurityGroup
-      Subnets:
-        - !ImportValue 'PublicSubnetIdA'
-        - !ImportValue 'PublicSubnetIdB'
-  WebserverELBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: WebserverELBSecurityGroup
-      GroupDescription: Security group for the webserver ELB
-      SecurityGroupEgress:
-        - IpProtocol: "-1"
-          CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: icmp
-          FromPort: '-1'
-          ToPort: '-1'
-          CidrIp: 0.0.0.0/0
-      VpcId: !ImportValue 'VpcId'
   WebServerELBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref 'WebServerELBTargetGroup'
           Type: forward
-      LoadBalancerArn: !Ref 'WebServerELB'
+      LoadBalancerArn: !ImportValue "WebServerELB-ARN"
       Port: 80
       Protocol: HTTP
   WebServerELBListenerRule:
@@ -147,8 +120,7 @@ Resources:
         - FromPort: 80
           IpProtocol: tcp
           ToPort: 80
-          SourceSecurityGroupId:
-            Ref: "WebserverELBSecurityGroup"
+          SourceSecurityGroupId: !ImportValue "WebServerELBSecurityGroup-Id"
         - CidrIp: '0.0.0.0/0'   # TODO: block all access except from Bastion
           FromPort: 22
           IpProtocol: tcp

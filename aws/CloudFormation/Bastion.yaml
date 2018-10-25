@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Creates the SSH Bastion. Reference
-  https://docs.aws.amazon.com/quickstart/latest/linux-bastion/overview.html and stacks
-  from the GitHub repo listed therein.
+# Reference  https://docs.aws.amazon.com/quickstart/latest/linux-bastion/overview.html and stacks
+# from the GitHub repo listed therein.
+Description: Creates the SSH Bastion.
 Metadata: {}
 Parameters:
   BucketName:

@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stack for parts related to the internet domain.
+Parameters: {}
+Metadata: {}
+Mappings:
+  HostedZoneIds:
+    Ids:
+      # Default hosted zone created by AWS when registering domain
+      CoreDashFantasy: ZZRRNPTTA1B6P
+      CoreFantasy: Z1APFG3PO6PVI3
+Resources:
+
+  CoreDashFantasyARecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt "WebServerELB.DNSName"
+        EvaluateTargetHealth: False
+        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+      Comment: "Alias record for core-fantasy.com to route to the ELB"
+      HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreDashFantasy"]
+      Name: "core-fantasy.com."
+      Type: A
+  CoreDashFantasyARecordSetWWW:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt "WebServerELB.DNSName"
+        EvaluateTargetHealth: False
+        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+      Comment: "Alias record for www.core-fantasy.com to route to the ELB"
+      HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreDashFantasy"]
+      Name: "www.core-fantasy.com."
+      Type: A
+
+
+  CoreFantasyARecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt "WebServerELB.DNSName"
+        EvaluateTargetHealth: False
+        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+      Comment: "Alias record for corefantasy.com to route to the ELB"
+      HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreFantasy"]
+      Name: "corefantasy.com."
+      Type: A
+  CoreFantasyARecordSetWWW:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt "WebServerELB.DNSName"
+        EvaluateTargetHealth: False
+        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+      Comment: "Alias record for www.corefantasy.com to route to the ELB"
+      HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreFantasy"]
+      Name: "www.corefantasy.com."
+      Type: A
+
+
+  WebServerELB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - Ref: WebServerELBSecurityGroup
+      Subnets:
+        - !ImportValue 'PublicSubnetIdA'
+        - !ImportValue 'PublicSubnetIdB'
+  WebServerELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: WebServerELBSecurityGroup
+      GroupDescription: Security group for the webserver ELB
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+      VpcId: !ImportValue 'VpcId'
+Outputs:
+  WebServerELBARN:
+    Description: ARN of WebServer ELB
+    Value: !Ref 'WebServerELB'
+    Export:
+      Name: !Sub 'WebServerELB-ARN'
+  WebServerELBSecurityGroupId:
+    Description: ID of WebServer ELB security group
+    Value: !Ref 'WebServerELBSecurityGroup'
+    Export:
+      Name: !Sub 'WebServerELBSecurityGroup-Id'
