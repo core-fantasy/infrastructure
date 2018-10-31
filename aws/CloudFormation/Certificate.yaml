@@ -3,16 +3,28 @@ Description: Creates certificates for the core-fantasy domains.
 Metadata: {}
 Parameters: {}
 Resources:
-  Certificate:
+  CoreDashFantasyCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: "*.core-fantasy.com"
+      DomainName: "core-fantasy.com"
       SubjectAlternativeNames:
-        - "*.corefantasy.com"
+        - "*.core-fantasy.com"
+      ValidationMethod: DNS
+  CoreFantasyCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: "corefantasy.com"
+      SubjectAlternativeNames:
+      - "*.corefantasy.com"
       ValidationMethod: DNS
 Outputs:
-  CertificateId:
-    Description: "Core Fantasy Certificate ID"
-    Value: !Ref "Certificate"
+  CoreDashFantasyCertificateARN:
+    Description: "Core-Fantasy Certificate ARN"
+    Value: !Ref "CoreDashFantasyCertificate"
     Export:
-      Name: !Sub "CoreFantasy-Certificate"
+      Name: !Sub "CoreDashFantasy-Certificate-ARN"
+  CoreFantasyCertificateARN:
+    Description: "Core Fantasy Certificate ARN"
+    Value: !Ref "CoreFantasyCertificate"
+    Export:
+      Name: !Sub "CoreFantasy-Certificate-ARN"
