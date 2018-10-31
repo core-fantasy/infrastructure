@@ -167,7 +167,10 @@ users:
   print "Kubernetes cluster config file written to: $kubernetesConfigFile\n";
 
   print "Setting Kubernetes context to '$context'\n";
-  system("$kubectlCli --kubeconfig='$kubernetesConfigFile' config set-context aws")
+  system("$kubectlCli --kubeconfig='$kubernetesConfigFile' config set-context aws");
+
+  print "Update your \$KUBECONFIG environment variable to include $kubernetesConfigFile\n";
+  print "  > export KUBECONFIG=\${KUBECONFIG}:$kubernetesConfigFile\n";
 }
 
 sub generateSSHConfig() {

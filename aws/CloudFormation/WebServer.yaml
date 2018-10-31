@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack for web server.
 # For debugging ELB, https://serverfault.com/questions/469094/issues-with-ec2-elastic-load-balancer-dns-and-routing
-# TODO: change over to use SSL: DNS, certs, https, 443, etc. Update helm chart, too.
 Parameters:
   BucketName:
     Type: String
@@ -10,60 +9,74 @@ Parameters:
     Type: String
     Description: EC2 Key pair name
 Resources:
-  WebServerELB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Scheme: internet-facing
-      SecurityGroups:
-        - Ref: WebserverELBSecurityGroup
-      Subnets:
-        - !ImportValue 'PublicSubnetIdA'
-        - !ImportValue 'PublicSubnetIdB'
-  WebserverELBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: WebserverELBSecurityGroup
-      GroupDescription: Security group for the webserver ELB
-      SecurityGroupEgress:
-        - IpProtocol: "-1"
-          CidrIp: 0.0.0.0/0
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: icmp
-          FromPort: '-1'
-          ToPort: '-1'
-          CidrIp: 0.0.0.0/0
-      VpcId: !ImportValue 'VpcId'
-  WebServerELBListener:
+
+  # HTTP
+  WebServerELBHttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref 'WebServerELBTargetGroup'
+        - TargetGroupArn: !Ref 'WebServerELBHttpTargetGroup'
           Type: forward
-      LoadBalancerArn: !Ref 'WebServerELB'
+      LoadBalancerArn: !ImportValue "WebServerELB-ARN"
       Port: 80
       Protocol: HTTP
-  WebServerELBListenerRule:
+  WebServerELBHttpListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref 'WebServerELBTargetGroup'
-          Type: forward
+      - TargetGroupArn: !Ref 'WebServerELBHttpTargetGroup'
+        Type: forward  # TODO: once Cloudformation inmplements redirect, change this to redirect to HTTPS
       Conditions:
-        - Field: path-pattern
-          Values:
-            - /*
-      ListenerArn: !Ref 'WebServerELBListener'
+      - Field: path-pattern
+        Values:
+        - /*
+      ListenerArn: !Ref 'WebServerELBHttpListener'
       Priority: 1
-  WebServerELBTargetGroup:
+  WebServerELBHttpTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Port: 80
       Protocol: HTTP
       VpcId: !ImportValue 'VpcId'
+
+  # HTTPS
+  WebServerELBHttpsListenerCertificate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties:
+      Certificates:
+        - CertificateArn: !ImportValue "CoreDashFantasy-Certificate-ARN"
+      ListenerArn: !Ref WebServerELBHttpsListener
+  WebServerELBHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: !ImportValue "CoreFantasy-Certificate-ARN"
+      DefaultActions:
+      - TargetGroupArn: !Ref 'WebServerELBHttpsTargetGroup'
+        Type: forward
+      LoadBalancerArn: !ImportValue "WebServerELB-ARN"
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-2016-08"
+  WebServerELBHttpsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'WebServerELBHttpsTargetGroup'
+        Type: forward
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - /*
+      ListenerArn: !Ref 'WebServerELBHttpsListener'
+      Priority: 1
+  WebServerELBHttpsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !ImportValue 'VpcId'
+
   WebServerAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -79,7 +92,8 @@ Resources:
         Value: 'owned'
         PropagateAtLaunch: 'true'
       TargetGroupARNs:
-        - !Ref 'WebServerELBTargetGroup'
+        - !Ref 'WebServerELBHttpTargetGroup'
+        - !Ref 'WebServerELBHttpsTargetGroup'
       VPCZoneIdentifier:
         - !ImportValue 'PrivateSubnetIdA'  # If using public subnet, EC2 instances need public IP to have outgoing traffic
         - !ImportValue 'PrivateSubnetIdB'
@@ -147,8 +161,11 @@ Resources:
         - FromPort: 80
           IpProtocol: tcp
           ToPort: 80
-          SourceSecurityGroupId:
-            Ref: "WebserverELBSecurityGroup"
+          SourceSecurityGroupId: !ImportValue "WebServerELBSecurityGroup-Id"
+        - FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+          SourceSecurityGroupId: !ImportValue "WebServerELBSecurityGroup-Id"
         - CidrIp: '0.0.0.0/0'   # TODO: block all access except from Bastion
           FromPort: 22
           IpProtocol: tcp

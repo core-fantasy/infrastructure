@@ -14,11 +14,17 @@ Once the stack is deployed, the **postDeploy.pl** script is used to generate
 useful files (ssh config, Kubernetes config) and issue commands to initialize
 the Kubernetes cluster.
 
+### Certificate Stack
+The stack defined in **Certificate.yaml** stands outside of the rest of the Cloudformation
+stacks. This stack should be deployed manually before running **deployStack.pl**. The reason
+is to keep the certificates from being destroyed and re-created when bringing up and down the
+full core-fantasy stack.
+
 ## Deploy core-fantasy
 core-fantasy is managed via [Helm][Helm]. There are a number of charts, but the top-level chart
 is the "core-fantasy" chart. To deploy the entirety of core-fantasy run:
 ```bash
-$ helm dependecy update core-fantasy
+$ helm dependency update core-fantasy
 $ helm install --name core-fantasy core-fantasy
 ```
 
