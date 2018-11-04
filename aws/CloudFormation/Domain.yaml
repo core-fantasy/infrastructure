@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Stack for parts related to the internet domain.
+Description: Stack for domain names and public facing ELB.
 Parameters: {}
 Metadata: {}
 Mappings:
@@ -14,9 +14,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       AliasTarget:
-        DNSName: !GetAtt "WebServerELB.DNSName"
+        DNSName: !GetAtt "PublicELB.DNSName"
         EvaluateTargetHealth: False
-        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+        HostedZoneId: !GetAtt "PublicELB.CanonicalHostedZoneID"
       Comment: "Alias record for core-fantasy.com to route to the ELB"
       HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreDashFantasy"]
       Name: "core-fantasy.com."
@@ -25,9 +25,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       AliasTarget:
-        DNSName: !GetAtt "WebServerELB.DNSName"
+        DNSName: !GetAtt "PublicELB.DNSName"
         EvaluateTargetHealth: False
-        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+        HostedZoneId: !GetAtt "PublicELB.CanonicalHostedZoneID"
       Comment: "Alias record for www.core-fantasy.com to route to the ELB"
       HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreDashFantasy"]
       Name: "www.core-fantasy.com."
@@ -38,9 +38,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       AliasTarget:
-        DNSName: !GetAtt "WebServerELB.DNSName"
+        DNSName: !GetAtt "PublicELB.DNSName"
         EvaluateTargetHealth: False
-        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+        HostedZoneId: !GetAtt "PublicELB.CanonicalHostedZoneID"
       Comment: "Alias record for corefantasy.com to route to the ELB"
       HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreFantasy"]
       Name: "corefantasy.com."
@@ -49,29 +49,29 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       AliasTarget:
-        DNSName: !GetAtt "WebServerELB.DNSName"
+        DNSName: !GetAtt "PublicELB.DNSName"
         EvaluateTargetHealth: False
-        HostedZoneId: !GetAtt "WebServerELB.CanonicalHostedZoneID"
+        HostedZoneId: !GetAtt "PublicELB.CanonicalHostedZoneID"
       Comment: "Alias record for www.corefantasy.com to route to the ELB"
       HostedZoneId: !FindInMap [HostedZoneIds, "Ids", "CoreFantasy"]
       Name: "www.corefantasy.com."
       Type: A
 
 
-  WebServerELB:
+  PublicELB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Scheme: internet-facing
       SecurityGroups:
-        - Ref: WebServerELBSecurityGroup
+        - Ref: PublicELBSecurityGroup
       Subnets:
         - !ImportValue 'PublicSubnetIdA'
         - !ImportValue 'PublicSubnetIdB'
-  WebServerELBSecurityGroup:
+  PublicELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: WebServerELBSecurityGroup
-      GroupDescription: Security group for the webserver ELB
+      GroupName: PublicELBSecurityGroup
+      GroupDescription: Security group for the public ELB
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -89,14 +89,84 @@ Resources:
           ToPort: '-1'
           CidrIp: 0.0.0.0/0
       VpcId: !ImportValue 'VpcId'
+
+  PublicELBHttpsListenerCertificate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties:
+      Certificates:
+        - CertificateArn: !ImportValue "CoreDashFantasy-Certificate-ARN"
+      ListenerArn: !Ref PublicELBHttpsListener
+  PublicELBHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: !ImportValue "CoreFantasy-Certificate-ARN"
+      DefaultActions:
+      - TargetGroupArn: !Ref 'WebServerHttpTargetGroup'
+        Type: forward
+      LoadBalancerArn: !Ref "PublicELB"
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-2016-08"
+
+  # Gateway
+  GatewayHttpsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'GatewayHttpTargetGroup'
+        Type: forward
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - /api/*
+      ListenerArn: !Ref 'PublicELBHttpsListener'
+      Priority: 1
+  GatewayHttpTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 31000
+      Protocol: HTTP
+      VpcId: !ImportValue 'VpcId'
+
+  # Web Server
+  WebServerHttpsListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - TargetGroupArn: !Ref 'WebServerHttpTargetGroup'
+        Type: forward
+      Conditions:
+      - Field: path-pattern
+        Values:
+        - /*
+      ListenerArn: !Ref 'PublicELBHttpsListener'
+      Priority: 2
+  WebServerHttpTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      VpcId: !ImportValue 'VpcId'
+
 Outputs:
-  WebServerELBARN:
-    Description: ARN of WebServer ELB
-    Value: !Ref 'WebServerELB'
+  PublicELBARN:
+    Description: ARN of public ELB
+    Value: !Ref 'PublicELB'
     Export:
-      Name: !Sub 'WebServerELB-ARN'
-  WebServerELBSecurityGroupId:
-    Description: ID of WebServer ELB security group
-    Value: !Ref 'WebServerELBSecurityGroup'
+      Name: !Sub 'PublicELB-ARN'
+  PublicELBSecurityGroupId:
+    Description: ID of public ELB security group
+    Value: !Ref 'PublicELBSecurityGroup'
     Export:
-      Name: !Sub 'WebServerELBSecurityGroup-Id'
+      Name: !Sub 'PublicELBSecurityGroup-Id'
+  GatewayHttpTargetGroupARN:
+    Description: ARN of the gateway target group
+    Value: !Ref 'GatewayHttpTargetGroup'
+    Export:
+      Name: !Sub 'GatewayHttpTargetGroup-ARN'
+  WebServerHttpTargetGroupARN:
+    Description: ARN of the web server target group
+    Value: !Ref 'WebServerHttpTargetGroup'
+    Export:
+      Name: !Sub 'WebServerHttpTargetGroup-ARN'

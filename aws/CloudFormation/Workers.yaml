@@ -1,54 +1,49 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Stack for web server.
-# For debugging ELB, https://serverfault.com/questions/469094/issues-with-ec2-elastic-load-balancer-dns-and-routing
+Description: Stack for Kubernetes general purpose worker nodes.
 Parameters:
-  BucketName:
-    Type: String
-    Description: S3 bucket containing all cloudformation (and related) files
   EC2KeyPairName:
     Type: String
     Description: EC2 Key pair name
 Resources:
 
-  WebServerAutoScaleGroup:
+  WorkersAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      DesiredCapacity: '2'
-      LaunchConfigurationName: !Ref 'WebServerLaunchConfig'
+      DesiredCapacity: '4'
+      LaunchConfigurationName: !Ref 'WorkersLaunchConfig'
       MaxSize: '5'
-      MinSize: '2'
+      MinSize: '3'
       Tags:
       - Key: Name
-        Value: 'CoreFantasy-WebServerGroup-Node'
+        Value: 'CoreFantasy-WorkerGroup-Node'
         PropagateAtLaunch: 'true'
       - Key: !Join ['', ['kubernetes.io/cluster/', !ImportValue EKSClusterName]]
         Value: 'owned'
         PropagateAtLaunch: 'true'
       TargetGroupARNs:
-        - !ImportValue 'WebServerHttpTargetGroup-ARN'
+        - !ImportValue 'GatewayHttpTargetGroup-ARN'
       VPCZoneIdentifier:
-        - !ImportValue 'PrivateSubnetIdA'  # If using public subnet, EC2 instances need public IP to have outgoing traffic
+        - !ImportValue 'PrivateSubnetIdA'
         - !ImportValue 'PrivateSubnetIdB'
-  WebServerLaunchConfig:
+  WorkersLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Metadata:
       AWS::CloudFormation::Init:
         config:
           files:
-            /tmp/WebserverBanner.txt:
+            /tmp/WorkersBanner.txt:
               # For some unknown reason pulling from S3 gives a 404, even if the file exists.
               content: |
                 " "
                 " "
-                "      ___  __   __   ___  __        ___  __           __   __   ___"
-                "|  | |__  |__) /__` |__  |__) \  / |__  |__)    |\ | /  \ |  \ |__ "
-                "|/\| |___ |__) .__/ |___ |  \  \/  |___ |  \    | \| \__/ |__/ |___"
+                "      __   __        ___  __           __   __   ___"
+                "|  | /  \ |__) |__/ |__  |__)    |\ | /  \ |  \ |__"
+                "|/\| \__/ |  \ |  \ |___ |  \    | \| \__/ |__/ |___"
                 " "
                 " "
               mode: '000444'
               owner: root
               group: root
-              authentication: S3AccessCreds
     Properties:
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
@@ -59,11 +54,11 @@ Resources:
       IamInstanceProfile: !ImportValue NodeInstanceProfile
       ImageId: ami-0a54c984b9f908c81    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
       InstanceMonitoring: false
-      InstanceType: t3.small
+      InstanceType: t2.large
       KeyName: !Ref 'EC2KeyPairName'
-      LaunchConfigurationName: WebServerLaunchConfig
+      LaunchConfigurationName: WorkersLaunchConfig
       SecurityGroups:
-        - !Ref 'WebServerSecurityGroup'
+        - !Ref 'WorkersSecurityGroup'
         - !ImportValue 'NodeSecurityGroup'
       UserData:
         Fn::Base64:
@@ -71,30 +66,27 @@ Resources:
             - |
               #!/bin/bash
               yum update -y
-              /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WebServerLaunchConfig
+              /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WorkersLaunchConfig
               cd /tmp
-              cat WebserverBanner.txt > /etc/ssh_banner
+              cat WorkersBanner.txt > /etc/ssh_banner
               # See https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
               #     https://aws.amazon.com/blogs/opensource/improvements-eks-worker-node-provisioning/
-              /etc/eks/bootstrap.sh ${EKSClusterName} --kubelet-extra-args --node-labels=node-type=webserver
+              /etc/eks/bootstrap.sh ${EKSClusterName} --kubelet-extra-args --node-labels=node-type=worker
               /opt/aws/bin/cfn-signal --exit-code $? \
                      --stack  ${AWS::StackName} \
-                     --resource WebServerAutoScaleGroup \
+                     --resource WorkersAutoScaleGroup \
                      --region ${AWS::Region}
             - EKSClusterName:
                 Fn::ImportValue:
                   EKSClusterName
-  WebServerSecurityGroup:
+  WorkersSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: WebServerSecurityGroup
+      GroupName: WorkersSecurityGroup
       GroupDescription: Allows incoming HTTP & SSH traffic
       SecurityGroupIngress:
-        - FromPort: 80
-          IpProtocol: tcp
-          ToPort: 80
-          SourceSecurityGroupId: !ImportValue "PublicELBSecurityGroup-Id"
-        - FromPort: 443
+        # TODO: probably need to include 8877 at some point for gateway admin
+        - FromPort: 31000
           IpProtocol: tcp
           ToPort: 443
           SourceSecurityGroupId: !ImportValue "PublicELBSecurityGroup-Id"
