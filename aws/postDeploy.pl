@@ -5,21 +5,30 @@ use warnings;
 
 use File::Which;
 use File::Temp qw/tempfile/;
+use Getopt::Long qw(:config auto_help);
 use MIME::Base64;
 use JSON qw/decode_json/;
 use Term::ReadKey;
 
-##
-##
-##  IMPORTANT!!!!
-##
-##  Make sure the steps in this script are idempotent!
-##
-##
+my $doGenerateSSHConfig = 0;
+my $doGenerateK8sConfig = 0;
+my $doJoinK8sCluster = 0;
+my $doInstallTiller = 0;
+my $doCreateK8sSecrets = 0;
+
+GetOptions(
+  "create-k8s-secrets" => \$doCreateK8sSecrets,
+  "ssh-config"         => \$doGenerateSSHConfig,
+  "k8s-config"         => \$doGenerateK8sConfig,
+  "join-k8s-cluster"   => \$doJoinK8sCluster,
+  "install-tiller"     => \$doInstallTiller,
+)
+  or die("Error in command line arguments.\n");
+
+my $doAll = ! ($doCreateK8sSecrets || $doInstallTiller || $doJoinK8sCluster || $doGenerateK8sConfig || $doGenerateSSHConfig);
 
 
 my $awsCli = which("aws");
-
 if (! -x $awsCli) {
   die "$0: aws cli tool not installed. Exiting.";
 }
@@ -52,12 +61,22 @@ foreach my $ec2Reservation (@ec2Reservations) {
 
 my $kubernetesConfigFile = "";
 
-&generateSSHConfig();
-&generateKubeConfig();
-# Must be after Kube config otherwise kubectl can't contact cluster
-&joinKubeCluster();
-&installTiller();
-&createKubernetesSecrets();
+if ($doAll || $doGenerateSSHConfig) {
+  &generateSSHConfig();
+}
+if ($doAll || $doGenerateK8sConfig) {
+  &generateKubeConfig();
+}
+if ($doAll || $doJoinK8sCluster) {
+  # Must be after Kube config otherwise kubectl can't contact cluster
+  &joinKubeCluster();
+}
+if ($doAll || $doInstallTiller) {
+  &installTiller();
+}
+if ($doAll || $doCreateK8sSecrets) {
+  &createKubernetesSecrets();
+}
 
 exit 0;
 
@@ -177,29 +196,6 @@ sub generateSSHConfig() {
 
   print "Creating AWS bastion SSH config file...\n";
 
-  my (%bastionObj, %webserverA, %webserverB);
-  for my $ec2InstanceReg (@ec2Instances) {
-    my %ec2Instance = %{$ec2InstanceReg};
-    my @tags = @{$ec2Instance{"Tags"}};
-    for my $tag (@tags) {
-      my $key = ${$tag}{"Key"};
-      my $value = ${$tag}{"Value"};
-      if ($key eq "Name") {
-        if ($value eq "LinuxBastion") {
-          %bastionObj = %ec2Instance;
-        }
-        elsif ($value eq "CoreFantasy-WebServerGroup-Node") {
-          if ($ec2Instance{"Placement"}{"AvailabilityZone"} eq "us-west-2a") {
-            %webserverA = %ec2Instance;
-          }
-          else {
-            %webserverB = %ec2Instance;
-          }
-        }
-      }
-    }
-  }
-
   my $json = `$awsCli ec2 describe-key-pairs`;
   my $keyPairsObj = decode_json($json);
   my $defaultKeyPair = ${$keyPairsObj}{"KeyPairs"}[0]{"KeyName"};
@@ -211,31 +207,40 @@ sub generateSSHConfig() {
     $identityFile = $defaultLocation;
   }
 
-  my $bastionIP = $bastionObj{"PublicIpAddress"};
-  my $webserverAIP = $webserverA{"PrivateIpAddress"};
-  my $webserverBIP = $webserverB{"PrivateIpAddress"};
+  my $configData = "";
+  my $username = "ec2-user";
+  my $bastionHost = "";
+  my $otherNodeConfigData = "";
 
-  my $bastionHost = "Bastion";
+  for my $ec2InstanceReg (@ec2Instances) {
+    my %ec2Instance = %{$ec2InstanceReg};
+    my @tags = @{$ec2Instance{"Tags"}};
+    for my $tag (@tags) {
+      my $key = ${$tag}{"Key"};
+      my $value = ${$tag}{"Value"};
+      if ($key eq "Name") {
 
-  # See: http://www.sanjeevnandam.com/blog/ssh-to-private-machines-through-public-bastion-aws-2
+        if ($value eq "LinuxBastion") {
+          $bastionHost = "$value";
+          $configData .= "Host $bastionHost\n" .
+            "Hostname $ec2Instance{'PublicIpAddress'}\n" .
+            "User $username\n" .
+            "IdentityFile $identityFile\n\n";
+        }
+        else {
+          my $ipAddress = $ec2Instance{"PrivateIpAddress"};
+          $otherNodeConfigData .= "Host ${value}-${ipAddress}\n" .
+            "Hostname $ipAddress\n" .
+            "User $username\n" .
+            "IdentityFile $identityFile\n" .
+            "ProxyCommand ssh __BASTION_HOST__ nc %h %p\n\n";
+        }
+      }
+    }
+  }
 
-  my $configData = qq{
-Host $bastionHost
-  Hostname $bastionIP
-  User ec2-user
-  IdentityFile $identityFile
-
-Host WebserverA
-  Hostname $webserverAIP
-  User ec2-user
-  IdentityFile $identityFile
-  ProxyCommand ssh $bastionHost nc %h %p
-Host WebserverB
-  Hostname $webserverBIP
-  User ec2-user
-  IdentityFile $identityFile
-  ProxyCommand ssh $bastionHost nc %h %p
-  };
+  $otherNodeConfigData =~ s/__BASTION_HOST__/$bastionHost/g;
+  $configData .= $otherNodeConfigData;
 
   my $file = "${workingDir}/ssh_config";
   writeToFile($file, $configData);

@@ -1,6 +1,0 @@
-dependencies:
-- name: web-server
-  repository: file://../web-server
-  version: 0.1.0
-digest: sha256:e12bd31856f3eea6987c7f55115fe13f84400cdec1a39b985e54cea2b9ecefc1
-generated: 2018-10-20T16:46:23.048278155-06:00

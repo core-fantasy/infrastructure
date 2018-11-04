@@ -30,6 +30,15 @@ Resources:
         - !Ref 'BucketName'
         - /Bastion.yaml
     DependsOn: VPCStack
+  KubeStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Join
+        - ''
+        - - https://s3.amazonaws.com/
+          - !Ref 'BucketName'
+          - /Kube.yaml
+    DependsOn: VPCStack
   DomainStack:
     Type: AWS::CloudFormation::Stack
     Properties:
@@ -39,15 +48,6 @@ Resources:
       - - https://s3.amazonaws.com/
         - !Ref 'BucketName'
         - /Domain.yaml
-    DependsOn: VPCStack
-  KubeStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Join
-        - ''
-        - - https://s3.amazonaws.com/
-          - !Ref 'BucketName'
-          - /Kube.yaml
     DependsOn: VPCStack
   WebServerStack:
     Type: AWS::CloudFormation::Stack
@@ -64,3 +64,17 @@ Resources:
       - VPCStack
       - KubeStack
       - DomainStack
+  WorkerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EC2KeyPairName: !Ref 'EC2KeyPairName'
+      TemplateURL: !Join
+      - ''
+      - - https://s3.amazonaws.com/
+        - !Ref 'BucketName'
+        - /Workers.yaml
+    DependsOn:
+    - VPCStack
+    - KubeStack
+    - DomainStack

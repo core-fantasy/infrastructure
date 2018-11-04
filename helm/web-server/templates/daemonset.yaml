@@ -5,11 +5,11 @@ metadata:
 spec:
   selector:
     matchLabels:
-      node-type: webserver
+      name: webserver
   template:
     metadata:
       labels:
-        node-type: webserver
+        name: webserver
     spec:
       containers:
       - name: httpd
@@ -36,3 +36,5 @@ spec:
           initialDelaySeconds: 10
       imagePullSecrets:
       - name: docker-hub-credentials
+      nodeSelector:
+        node-type: webserver
