@@ -1,0 +1,22 @@
+coreElasticsearch:
+  storageClass:
+    name: elk-storage-class
+    type: gp2
+
+elasticsearch:
+  client:
+    replicas: 1
+    nodeSelector:
+      node-type: elk
+  master:
+    replicas: 2
+    nodeSelector:
+      node-type: elk
+    persistence:
+      storageClass: elk-storage-class
+  data:
+    replicas: 1
+    nodeSelector:
+      node-type: elk
+    persistence:
+      storageClass: elk-storage-class

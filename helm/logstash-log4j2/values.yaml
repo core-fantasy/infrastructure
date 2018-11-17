@@ -1,0 +1,45 @@
+# See
+#   https://www.elastic.co/guide/en/logstash/current/plugins-inputs-tcp.html
+logstash:
+  replicaCount: 2
+  service:
+    ports:
+      log4j2:
+        port: 5045
+        targetPort: log4j2
+        protocol: TCP
+  ports:
+  - name: log4j2
+    containerPort: 5045
+    protocol: TCP
+  nodeSelector:
+    node-type: elk
+  persistence:
+    enabled: false
+  elasticsearch:
+    port: 9201   # See core-elasticsearch/client-alias.yaml
+  inputs:
+    main: |-
+      input {
+        tcp {
+          port => 5045
+          codec => json
+        }
+      }
+  filters:
+    main: |-
+      filter {
+        date {
+          match => [ "timeMillis", "UNIX_MS" ]
+        }
+      }
+  outputs:
+    main: |-
+      output {
+        # stdout { codec => rubydebug }
+        elasticsearch {
+          hosts => ["${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}"]
+          manage_template => false
+          index => "logstash-%{+YYYY.MM.dd}"
+        }
+      }

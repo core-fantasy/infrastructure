@@ -1,0 +1,7 @@
+kibana:
+  env:
+    ELASTICSEARCH_URL: "http://elasticsearch-client:9201"  # Matches alias service in core-elasticsearch.
+  nodeSelector:
+    node-type: elk
+  service:
+    externalPort: 5601

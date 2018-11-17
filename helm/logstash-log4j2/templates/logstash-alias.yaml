@@ -1,0 +1,34 @@
+# Cribbed from service.yaml. Used to provide a name logging clients can reach because I can't figure out how to
+# tell the Kibana chart the full logstash service name (the release is killing me).
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash-log4j2
+  labels:
+    app: {{ template "logstash.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+{{- with .Values.logstash.service.annotations }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  type: {{ .Values.logstash.service.type }}
+{{- if .Values.logstash.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.logstash.service.externalTrafficPolicy }}
+{{- end }}
+  ports:
+  {{- range $key, $value := .Values.logstash.service.ports }}
+    - name: {{ $key }}
+{{ toYaml $value | indent 6 }}
+  {{- end }}
+  selector:
+    app: "logstash"
+    release: {{ .Release.Name }}
+{{- if .Values.logstash.service.clusterIP }}
+  clusterIP: {{ .Values.logstash.service.clusterIP }}
+{{- end }}
+{{ if (and (eq .Values.logstash.service.type "NodePort") (not (empty .Values.logstash.service.nodePort))) }}
+  nodePort: {{ .Values.logstash.service.nodePort }}
+{{- end }}

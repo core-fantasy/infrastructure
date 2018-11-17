@@ -1,0 +1,28 @@
+# Cribbed from client-svc chart. Used to provide a name Kibana can reach because I can't figure out how to
+# tell the Kibana chart the full elasticsearch client service name (the release is killing me).
+# See: core-kibana/values.yaml, logstash-log4j2/values.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ template "elasticsearch.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    component: "{{ .Values.elasticsearch.client.name }}"
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  name: elasticsearch-client
+{{- if .Values.elasticsearch.client.serviceAnnotations }}
+  annotations:
+{{ toYaml .Values.elasticsearch.client.serviceAnnotations | indent 4 }}
+{{- end }}
+
+spec:
+  ports:
+    - name: http
+      port: 9201
+      targetPort: http
+  selector:
+    app: "elasticsearch"
+    component: "{{ .Values.elasticsearch.client.name }}"
+    release: {{ .Release.Name }}
+  type: {{ .Values.elasticsearch.client.serviceType }}

@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stack for ELK logging stack
+Parameters:
+  EC2KeyPairName:
+    Type: String
+    Description: EC2 Key pair name
+Resources:
+
+  ELKAutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: '4'
+      LaunchConfigurationName: !Ref 'ELKLaunchConfig'
+      MaxSize: '5'
+      MinSize: '4'
+      Tags:
+      - Key: Name
+        Value: 'CoreFantasy-ELK-Node'
+        PropagateAtLaunch: 'true'
+      - Key: !Join ['', ['kubernetes.io/cluster/', !ImportValue EKSClusterName]]
+        Value: 'owned'
+        PropagateAtLaunch: 'true'
+      VPCZoneIdentifier:
+      - !ImportValue 'PrivateSubnetIdA'
+      - !ImportValue 'PrivateSubnetIdB'
+  ELKLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          files:
+            /tmp/Banner.txt:
+              # For some unknown reason pulling from S3 gives a 404, even if the file exists.
+              content: |
+                " "
+                " "
+                "   ___                    __   __   ___"
+                "  |__  |    |__/    |\ | /  \ |  \ |__"
+                "  |___ |___ |  \    | \| \__/ |__/ |___"
+                " "
+                " "
+              mode: '000444'
+              owner: root
+              group: root
+    Properties:
+      BlockDeviceMappings:
+      - DeviceName: /dev/xvda
+        Ebs:
+          VolumeSize: 20  # Minimum value
+          VolumeType: gp2
+          DeleteOnTermination: true
+      IamInstanceProfile: !ImportValue NodeInstanceProfile
+      ImageId: ami-0f54a2f7d2e9c88b3
+      InstanceMonitoring: false
+      InstanceType: m5.xlarge
+      KeyName: !Ref 'EC2KeyPairName'
+      LaunchConfigurationName: ELKLaunchConfig
+      SecurityGroups:
+      - !Ref 'ELKSecurityGroup'
+      - !ImportValue 'NodeSecurityGroup'
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+          - |
+            #!/bin/bash
+            yum update -y
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource ELKLaunchConfig
+            # See https://github.com/pires/kubernetes-elasticsearch-cluster/issues/215
+            sed -i -e 's/1024:4096/1024000:1024000/g' /etc/sysconfig/docker
+            systemctl restart docker
+            cd /tmp
+            cat Banner.txt > /etc/ssh_banner
+            # See https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
+            #     https://aws.amazon.com/blogs/opensource/improvements-eks-worker-node-provisioning/
+            /etc/eks/bootstrap.sh ${EKSClusterName} --kubelet-extra-args --node-labels=node-type=elk
+            /opt/aws/bin/cfn-signal --exit-code $? \
+                   --stack  ${AWS::StackName} \
+                   --resource ELKAutoScaleGroup \
+                   --region ${AWS::Region}
+          - EKSClusterName:
+              Fn::ImportValue:
+                EKSClusterName
+  ELKSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ELKSecurityGroup
+      GroupDescription: Security group for all ELK related pieces
+      SecurityGroupIngress:
+      - CidrIp: '0.0.0.0/0'  # Beats->Logstash access
+        FromPort: 5044
+        IpProtocol: tcp
+        ToPort: 5044
+      - CidrIp: '0.0.0.0/0'  # Kibana
+        FromPort: 5601
+        IpProtocol: tcp
+        ToPort: 5601
+      - CidrIp: '0.0.0.0/0'
+        FromPort: 9200
+        IpProtocol: tcp
+        ToPort: 9200
+      - CidrIp: '0.0.0.0/0'
+        FromPort: 9300
+        IpProtocol: tcp
+        ToPort: 9300
+      - CidrIp: '0.0.0.0/0'   # TODO: block all access except from Bastion
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: icmp
+        FromPort: '-1'
+        ToPort: '-1'
+      VpcId: !ImportValue 'VpcId'
