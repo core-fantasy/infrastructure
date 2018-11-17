@@ -31,7 +31,7 @@ Resources:
       AWS::CloudFormation::Init:
         config:
           files:
-            /tmp/WorkersBanner.txt:
+            /tmp/Banner.txt:
               # For some unknown reason pulling from S3 gives a 404, even if the file exists.
               content: |
                 " "
@@ -52,7 +52,7 @@ Resources:
             VolumeType: gp2
             DeleteOnTermination: true
       IamInstanceProfile: !ImportValue NodeInstanceProfile
-      ImageId: ami-0a54c984b9f908c81    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
+      ImageId: ami-0f54a2f7d2e9c88b3    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
       InstanceMonitoring: false
       InstanceType: t2.large
       KeyName: !Ref 'EC2KeyPairName'
@@ -68,7 +68,7 @@ Resources:
               yum update -y
               /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --region ${AWS::Region} --resource WorkersLaunchConfig
               cd /tmp
-              cat WorkersBanner.txt > /etc/ssh_banner
+              cat Banner.txt > /etc/ssh_banner
               # See https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
               #     https://aws.amazon.com/blogs/opensource/improvements-eks-worker-node-provisioning/
               /etc/eks/bootstrap.sh ${EKSClusterName} --kubelet-extra-args --node-labels=node-type=worker
@@ -88,7 +88,7 @@ Resources:
         # TODO: probably need to include 8877 at some point for gateway admin
         - FromPort: 31000
           IpProtocol: tcp
-          ToPort: 443
+          ToPort: 31000
           SourceSecurityGroupId: !ImportValue "PublicELBSecurityGroup-Id"
         - CidrIp: '0.0.0.0/0'   # TODO: block all access except from Bastion
           FromPort: 22

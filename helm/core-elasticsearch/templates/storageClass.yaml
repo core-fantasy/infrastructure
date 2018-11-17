@@ -1,0 +1,10 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: "{{ .Values.coreElasticsearch.storageClass.name }}"
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: "{{ .Values.coreElasticsearch.storageClass.type }}"
+reclaimPolicy: Retain
+mountOptions:
+- debug

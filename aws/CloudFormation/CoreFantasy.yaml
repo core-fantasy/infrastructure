@@ -49,6 +49,19 @@ Resources:
         - !Ref 'BucketName'
         - /Domain.yaml
     DependsOn: VPCStack
+  ELKStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EC2KeyPairName: !Ref 'EC2KeyPairName'
+      TemplateURL: !Join
+      - ''
+      - - https://s3.amazonaws.com/
+        - !Ref 'BucketName'
+        - /ELK.yaml
+    DependsOn:
+      - VPCStack
+      - KubeStack
   WebServerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
