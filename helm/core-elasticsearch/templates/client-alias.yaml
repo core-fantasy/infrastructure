@@ -1,6 +1,6 @@
 # Cribbed from client-svc chart. Used to provide a name Kibana can reach because I can't figure out how to
 # tell the Kibana chart the full elasticsearch client service name (the release is killing me).
-# See: core-kibana/values.yaml
+# See: core-kibana/values.yaml, logstash-log4j2/values.yaml
 apiVersion: v1
 kind: Service
 metadata:

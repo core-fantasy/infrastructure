@@ -11,3 +11,6 @@ dependencies:
   - name: core-kibana
     version: 0.1.0
     repository: file://../core-kibana
+  - name: logstash-log4j2
+    version: 0.1.0
+    repository: file://../logstash-log4j2

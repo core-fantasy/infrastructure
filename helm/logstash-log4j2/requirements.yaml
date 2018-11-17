@@ -1,0 +1,4 @@
+dependencies:
+- name: logstash
+  version: ^1.2.1
+  repository: https://kubernetes-charts.storage.googleapis.com/
