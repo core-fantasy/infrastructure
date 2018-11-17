@@ -5,3 +5,9 @@ dependencies:
   - name: gateway
     version: 0.1.0
     repository: file://../gateway
+  - name: core-elasticsearch
+    version: 0.1.0
+    repository: file://../core-elasticsearch
+  - name: core-kibana
+    version: 0.1.0
+    repository: file://../core-kibana
