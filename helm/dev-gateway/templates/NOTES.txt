@@ -1,0 +1,5 @@
+Access the dashboard with these commands:
+  kubectl port-forward service/{{ include "dev-gateway.fullname" . }} 8080:{{ .Values.service.port }}
+  (Note: if the gateway pod restarts, you'll probably need to re-run this command)
+Then in the browser, access:
+  http://localhost:8080

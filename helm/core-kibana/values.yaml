@@ -5,3 +5,8 @@ kibana:
     node-type: elk
   service:
     externalPort: 5601
+  files:
+    kibana.yml:
+      server.name: kibana
+      server.host: "0"
+      server.basePath: /kibana  # For the dev gateway

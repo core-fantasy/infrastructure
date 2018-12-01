@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: "{{ include "dev-gateway.fullname" . }}-webpage"
+data:
+    index.html: |-
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <title>Developer Gateway</title>
+        <style>
+        body {
+          width: 35em;
+          margin: 0 auto;
+          font-family: Tahoma, Verdana, Arial, sans-serif;
+        }
+        </style>
+        </head>
+        <body>
+        <h1>Developer Links</h1>
+        <p>This page contains links to developer resources.</p>
+
+        <p><a href="/ambassador/v0/diag/">Ambassador (Gateway) Dashboard</a></p>
+        <p><a href="/kibana/">Kibana</a></p>
+        </body>
+        </html>
