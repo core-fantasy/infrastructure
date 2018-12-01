@@ -14,3 +14,6 @@ dependencies:
   - name: logstash-log4j2
     version: 0.1.0
     repository: file://../logstash-log4j2
+  - name: dev-gateway
+    version: 0.1.0
+    repository: file://../dev-gateway
