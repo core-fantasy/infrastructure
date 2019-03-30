@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "authorization.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "authorization.name" . }}
+    helm.sh/chart: {{ include "authorization.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    getambassador.io/config: |
+      ---
+      apiVersion: ambassador/v1
+      kind:  Mapping
+      name:  user_mapping
+      prefix: /user/
+      service: user
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "authorization.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

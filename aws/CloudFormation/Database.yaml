@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Stack for Databases
+Parameters:
+  MasterUsername:
+    Type: String
+    Default: corefantasy
+    Description: Database main username
+  MasterPassword:
+    Type: String
+    Description: Database main password (min 8 chars)
+    NoEcho: true
+Resources:
+  PrivateSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: Subnet group of private subnets
+      SubnetIds:
+        - !ImportValue 'PrivateSubnetIdA'
+        - !ImportValue 'PrivateSubnetIdB'
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: All access security group for RDS
+      VpcId:  !ImportValue 'VpcId'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: icmp
+          FromPort: '-1'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+  MainDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "100"
+      AllowMajorVersionUpgrade: true
+      BackupRetentionPeriod: 7
+      DBInstanceClass: "db.t3.micro"
+      DBInstanceIdentifier: "main"
+      DBSubnetGroupName: !Ref PrivateSubnetGroup
+      DeleteAutomatedBackups: false
+      Engine: "postgres"
+      Iops: 1000
+      MasterUsername: !Ref 'MasterUsername'
+      MasterUserPassword: !Ref 'MasterPassword'
+      MultiAZ: true
+      PubliclyAccessible: false
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+Outputs:
+  MainDBAddress:
+    Description: DB endpoint
+    Value:
+      Fn::GetAtt: [ MainDB, Endpoint.Address ]
+  MainDBPort:
+    Description: DB port
+    Value:
+      Fn::GetAtt: [ MainDB, Endpoint.Port ]

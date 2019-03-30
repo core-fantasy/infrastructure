@@ -127,7 +127,7 @@ Resources:
               group: root
               authentication: S3AccessCreds
           commands:
-            b-bootstrap:
+            a-bootstrap:
               command: !Join
                 - ''
                 - - /tmp/bastion_bootstrap.sh
@@ -136,6 +136,10 @@ Resources:
                   - ' --enable true'
                   - ' --tcp-forwarding true'
                   - ' --x11-forwarding true'
+            b-postgres:
+              command: !Join
+                - ''
+                - - "sudo yum install postgresql -y"
     Properties:
       AssociatePublicIpAddress: 'true'
       KeyName: !Ref 'EC2KeyPairName'

@@ -9,15 +9,18 @@ use Getopt::Long qw(:config auto_help);
 use MIME::Base64;
 use JSON qw/decode_json/;
 use Term::ReadKey;
+use Term::ANSIColor;
 
 my $doGenerateSSHConfig = 0;
 my $doGenerateK8sConfig = 0;
 my $doJoinK8sCluster = 0;
 my $doInstallTiller = 0;
 my $doCreateK8sSecrets = 0;
+my $doDatabaseSetup = 0;
 
-GetOptions(
+Getopt::Long::GetOptions(
   "create-k8s-secrets" => \$doCreateK8sSecrets,
+  "db-setup"           => \$doDatabaseSetup,
   "ssh-config"         => \$doGenerateSSHConfig,
   "k8s-config"         => \$doGenerateK8sConfig,
   "join-k8s-cluster"   => \$doJoinK8sCluster,
@@ -25,7 +28,8 @@ GetOptions(
 )
   or die("Error in command line arguments.\n");
 
-my $doAll = ! ($doCreateK8sSecrets || $doInstallTiller || $doJoinK8sCluster || $doGenerateK8sConfig || $doGenerateSSHConfig);
+my $doAll = ! ($doCreateK8sSecrets || $doInstallTiller || $doJoinK8sCluster || $doGenerateK8sConfig
+  || $doGenerateSSHConfig || $doDatabaseSetup);
 
 
 my $awsCli = which("aws");
@@ -41,16 +45,18 @@ if (! -x $kubectlCli) {
 my $workingDir = "generated";
 my $tempFileTemplate = "postDeployXXXXX";
 
-my $json = `aws ec2 describe-vpcs --filters Name=tag:Name,Values=core-fantasy`;
-my $vpcs = decode_json($json);
+my @manualPostSteps = ();
+
+my $vpcJson = `aws ec2 describe-vpcs --filters Name=tag:Name,Values=core-fantasy`;
+my $vpcs = decode_json($vpcJson);
 
 my $vpcId = ${$vpcs}{"Vpcs"}[0]{"VpcId"};
 #print "VPC id: $vpcId\n";
 
-$json = `$awsCli ec2 describe-instances --filters Name=vpc-id,Values=$vpcId`;
+my $ec2Json = `$awsCli ec2 describe-instances --filters Name=vpc-id,Values=$vpcId`;
 
 my @ec2Instances = ();
-my $ec2InstancesObj = decode_json($json);
+my $ec2InstancesObj = decode_json($ec2Json);
 my @ec2Reservations = @{${$ec2InstancesObj}{"Reservations"}};
 foreach my $ec2Reservation (@ec2Reservations) {
   my @instances = @{${$ec2Reservation}{"Instances"}};
@@ -77,48 +83,91 @@ if ($doAll || $doInstallTiller) {
 if ($doAll || $doCreateK8sSecrets) {
   &createKubernetesSecrets();
 }
+if ($doAll || $doDatabaseSetup) {
+  &databaseSetup();
+}
+
+&printManualSteps();
 
 exit 0;
 
-sub createKubernetesSecrets() {
-  print "Installing secrets to the Kubernets cluster...\n";
+sub printStep($) {
+  my ($banner) = @_;
 
-  my $username = "corefantasy";
+  print color('bold green') . "\n$banner\n" . ("=" x length($banner)) . "\n" . color('reset');
+}
 
-  print "Enter hub.docker.com password for user $username: ";
-  ReadMode('noecho'); # don't echo
-  chomp(my $password = <STDIN>);
-  ReadMode(0);
-  print "\n";  # Just to pretty up things.
+sub databaseSetup() {
+  printStep "Performing Database setup steps";
 
-  $username = encode_base64($username);
-  $password = encode_base64($password);
+  my $json = `$awsCli rds describe-db-instances`;
+  my $instancesObj = decode_json($json);
+  my @instances = @{${$instancesObj}{"DBInstances"}};
 
-  my $dockerHubSecret = qq{
+  my $databaseConfigMap = qq{
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
-  name: docker-hub-credentials
-type: Opaque
+  name: database-config
+  namespace: default
 data:
-  username: $username
-  password: $password
-  };
+};
 
-  my ($fh, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
-  writeToFile($filename, $dockerHubSecret);
+  my @databaseCreateSteps = ("ssh to the bastion host and run the following commands");
+  for my $instance (@instances) {
+    my $identifier = ${$instance}{"DBInstanceIdentifier"};
+    my $dbUserName = ${$instance}{"MasterUsername"};
+    my $address = ${$instance}{"Endpoint"}{"Address"};
+    my $port = ${$instance}{"Endpoint"}{"Port"};
+    # This pretty much locks us into Postgres. See https://vladmihalcea.com/jdbc-driver-connection-url-strings/
+    $databaseConfigMap .=
+      "  ${identifier}.address: \"//${address}:${port}\"\n" .
+      "  ${identifier}.user-name: \"${dbUserName}\"\n";
+
+    push @databaseCreateSteps, "  createdb -h ${address} -p ${port} -U ${dbUserName} user \"DB of registered users\""
+  }
+
+  my (undef, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
+  writeToFile($filename, $databaseConfigMap);
 
   system("$kubectlCli create -f $filename");
 
-  # Lame-ass security
-  writeToFile($filename, "");
-  $dockerHubSecret = "";
-  $password = "";
+
+  # Manual steps
+  push @manualPostSteps, [@databaseCreateSteps];
+}
+
+sub createKubernetesSecrets() {
+  printStep "Installing secrets to the Kubernetes cluster";
+
+  my $data;
+
+  print "Enter Google Client ID: ";
+  chomp(my $googleId = <>);
+  $data = "  id: " . encode_base64($googleId);
+  &createSecret("google-id", $data);
+
+  print "Enter JWT generator secret (min 256 bits/32 chars): ";
+  chomp(my $jwtGeneratorSecret = <>);
+  $data = "  generator-secret: " . encode_base64($jwtGeneratorSecret);
+  &createSecret("jwt", $data);
+
+  my $username = "corefantasy";
+  print "Enter hub.docker.com password for user $username: ";
+  chomp(my $password = <STDIN>);
+  $data = "  username: " . encode_base64($username) . "\n" .
+    "  password: " . encode_base64($password) . "\n";
+  &createSecret("docker-hub-credentials", $data);
+
+  print "Enter 'main' DB master password (same as deploy): ";
+  chomp(my $dbMasterPassword = <>);
+  $data = "  password: " . encode_base64($dbMasterPassword);
+  &createSecret("main-db-master-password", $data);
 }
 
 sub generateKubeConfig() {
 
-  print "Creating Kubernetes config file...\n";
+  printStep "Creating Kubernetes config file";
 
   my $json = `$awsCli eks list-clusters`;
   my $clustersObj = decode_json($json);
@@ -188,13 +237,14 @@ users:
   print "Setting Kubernetes context to '$context'\n";
   system("$kubectlCli --kubeconfig='$kubernetesConfigFile' config set-context aws");
 
-  print "Update your \$KUBECONFIG environment variable to include $kubernetesConfigFile\n";
-  print "  > export KUBECONFIG=\${KUBECONFIG}:$kubernetesConfigFile\n";
+  push @manualPostSteps, [
+    "Update your \$KUBECONFIG environment variable to include $kubernetesConfigFile",
+    "  > export KUBECONFIG=\${KUBECONFIG}:$kubernetesConfigFile"];
 }
 
 sub generateSSHConfig() {
 
-  print "Creating AWS bastion SSH config file...\n";
+  printStep "Creating AWS bastion SSH config file";
 
   my $json = `$awsCli ec2 describe-key-pairs`;
   my $keyPairsObj = decode_json($json);
@@ -244,14 +294,13 @@ sub generateSSHConfig() {
 
   my $file = "${workingDir}/ssh_config";
   writeToFile($file, $configData);
-  print "SSH file written to: $file\n";
   # Not doing this manually as it's really tricky to not append duplicate entries to .ssh/config
   # If you use "ssh -A -F generated/ssh_config Webserver" authentication to the private machine fails.
-  print "  --> Copy this to ~/.ssh/config or append contents to same file.\n";
+  push @manualPostSteps, ["Copy $file to ~/.ssh/config or append contents to same file."];
 }
 
 sub installTiller() {
-  print "Installing Tiller onto the Kubernetes cluster...\n";
+  printStep "Installing Tiller onto the Kubernetes cluster";
 
   system("helm init");
 
@@ -264,7 +313,7 @@ sub installTiller() {
 
 sub joinKubeCluster() {
 
-  print "Instructing Kube worker nodes to join cluster...\n";
+  printStep "Instructing Kube worker nodes to join cluster";
 
   my $json = `$awsCli iam list-roles`;
   my $rolesObj = decode_json($json);
@@ -293,9 +342,19 @@ data:
         - system:nodes
     };
 
-  my ($fh, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
+  my (undef, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
   writeToFile($filename, $configMap);
   system("$kubectlCli apply -f $filename");
+}
+
+sub printManualSteps() {
+  printStep "Manual Steps to Run";
+  for my $ii (0..$#manualPostSteps) {
+    print(($ii+1) . ".");
+    for my $line (@{$manualPostSteps[$ii]}) {
+      print " $line\n";
+    }
+  }
 }
 
 sub writeToFile() {
@@ -304,4 +363,22 @@ sub writeToFile() {
   open FILE, ">${file}" or die "$0: Failed to open '$file' for writing: $!\n";
   print FILE $data;
   close FILE or die "$0: Failed to close '$file': $!\n";
+}
+
+sub createSecret() {
+  my ($secretName, $data) = @_;
+
+  my $secret = qq{
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${secretName}
+type: Opaque
+data:
+$data
+  };
+
+  my (undef, $filename) = tempfile($tempFileTemplate, UNLINK => 1);
+  &writeToFile($filename, $secret);
+  system("$kubectlCli create -f $filename");
 }
