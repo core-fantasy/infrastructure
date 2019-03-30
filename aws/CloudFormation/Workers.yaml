@@ -52,7 +52,7 @@ Resources:
             VolumeType: gp2
             DeleteOnTermination: true
       IamInstanceProfile: !ImportValue NodeInstanceProfile
-      ImageId: ami-0f54a2f7d2e9c88b3    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
+      ImageId: ami-0923e4b35a30a5f53    # See: https://docs.aws.amazon.com/eks/latest/userguide/eks-optimized-ami.html
       InstanceMonitoring: false
       InstanceType: t2.large
       KeyName: !Ref 'EC2KeyPairName'

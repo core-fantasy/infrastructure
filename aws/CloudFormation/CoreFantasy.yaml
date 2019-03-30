@@ -7,6 +7,10 @@ Parameters:
   EC2KeyPairName:
     Type: String
     Description: EC2 Key pair name
+  DBMasterPassword:
+    Type: String
+    Description: Master password for the Database (min 8 chars)
+    NoEcho: true
 Resources:
   VPCStack:
     Type: AWS::CloudFormation::Stack
@@ -62,6 +66,18 @@ Resources:
     DependsOn:
       - VPCStack
       - KubeStack
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        MasterPassword: !Ref 'DBMasterPassword'
+      TemplateURL: !Join
+        - ''
+        - - https://s3.amazonaws.com/
+          - !Ref 'BucketName'
+          - /Database.yaml
+    DependsOn:
+      - VPCStack
   WebServerStack:
     Type: AWS::CloudFormation::Stack
     Properties:

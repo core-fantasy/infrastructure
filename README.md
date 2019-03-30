@@ -33,6 +33,9 @@ $ helm install --name core-fantasy core-fantasy
 * AWS Cloudformation: `aws cloudformation validate-template --template-body file://<full path to file>`
 * Kubernetes Templates: `kubectl apply --validate=true --dry-run=true --filename=<file>`
 * Helm: `helm lint <chart>`
+### Google Sign In
+* [Web Sign In Help](https://developers.google.com/identity/sign-in/web/)
+* [Credentials Manager](https://console.developers.google.com/apis/credentials) (for Google Client Id)
 
 ### Banners
 AWS SSH banners generated [here][banner] using "JS Stick Letters" font.

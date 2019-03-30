@@ -1,0 +1,4 @@
+appVersion: "1.0"
+description: Authorization service
+name: authorization
+version: 0.1.0

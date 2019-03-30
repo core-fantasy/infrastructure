@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "user.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "user.name" . }}
+    helm.sh/chart: {{ include "user.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "user.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "user.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: JDBC_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: "{{ .Values.deployment.db.instance }}.address"
+                  name: database-config
+            - name: JDBC_DRIVER
+              value: "org.postgresql.Driver"
+            - name: JDBC_DB_NAME
+              value: "/{{ .Values.deployment.db.name }}"
+            - name: JDBC_TYPE
+              value: {{ .Values.deployment.db.type | quote }}
+            - name: JDBC_USER
+              valueFrom:
+                configMapKeyRef:
+                  key: "{{ .Values.deployment.db.instance }}.user-name"
+                  name: database-config
+            - name: JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: "{{ .Values.deployment.db.instance}}-db-master-password"
+            - name: JWT_GENERATOR_SIGNATURE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: generator-secret
+                  name: jwt
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

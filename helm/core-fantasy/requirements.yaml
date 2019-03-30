@@ -17,3 +17,9 @@ dependencies:
   - name: dev-gateway
     version: 0.1.0
     repository: file://../dev-gateway
+  - name: user
+    version: 0.1.0
+    repository: file://../user
+  - name: authorization
+    version: 0.1.0
+    repository: file://../authorization

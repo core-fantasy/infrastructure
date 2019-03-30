@@ -61,6 +61,9 @@ if ($ec2KeyPairName eq "") {
   $ec2KeyPairName = $defaultKeyPair;
 }
 
+print "Enter DB master password (min 8 chars): ";
+chomp(my $dbMasterPassword = <>);
+
 my $createBucket = 0;
 chomp(my $bucketHeadCheck = 
       `$awsCli s3api head-bucket --bucket '$bucketName' 2>&1`);
@@ -153,8 +156,10 @@ my $command = "$awsCli cloudformation $cloudFormationCommand " .
   "--capabilities CAPABILITY_IAM " .
   "--template-url https://s3.amazonaws.com/$bucketName/CoreFantasy.yaml " .
   "--parameters" .
-  " ParameterKey=BucketName,ParameterValue=$bucketName,UsePreviousValue=false".
-  " ParameterKey=EC2KeyPairName,ParameterValue=$ec2KeyPairName,UsePreviousValue=false";
+  " ParameterKey=BucketName,ParameterValue=$bucketName" .
+  " ParameterKey=EC2KeyPairName,ParameterValue=$ec2KeyPairName" .
+  " ParameterKey=DBMasterPassword,ParameterValue=$dbMasterPassword"
+;
 
 $status = system($command);
 if (0 != $status) {
