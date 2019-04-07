@@ -16,7 +16,7 @@ spec:
         node-type: worker
       containers:
       - name: ambassador
-        image: quay.io/datawire/ambassador:0.40.1
+        image: quay.io/datawire/ambassador:0.53.1
         resources:
           limits:
             cpu: 1
