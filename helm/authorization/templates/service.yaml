@@ -12,9 +12,9 @@ metadata:
       ---
       apiVersion: ambassador/v1
       kind:  Mapping
-      name:  user_mapping
-      prefix: /user/
-      service: user
+      name:  authorization_mapping
+      prefix: /api/authorization/
+      service: {{ include "authorization.fullname" . }}:{{ .Values.service.port }}
 spec:
   type: {{ .Values.service.type }}
   ports:
