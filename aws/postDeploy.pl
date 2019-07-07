@@ -144,24 +144,24 @@ sub createKubernetesSecrets() {
 
   print "Enter Google Client ID: ";
   chomp(my $googleId = <>);
-  $data = "  id: " . encode_base64($googleId);
+  $data = "  id: " . encode_base64($googleId, "");
   &createSecret("google-id", $data);
 
   print "Enter JWT generator secret (min 256 bits/32 chars): ";
   chomp(my $jwtGeneratorSecret = <>);
-  $data = "  generator-secret: " . encode_base64($jwtGeneratorSecret);
+  $data = "  generator-secret: " . encode_base64($jwtGeneratorSecret, "");
   &createSecret("jwt", $data);
 
   my $username = "corefantasy";
   print "Enter hub.docker.com password for user $username: ";
   chomp(my $password = <STDIN>);
-  $data = "  username: " . encode_base64($username) . "\n" .
-    "  password: " . encode_base64($password) . "\n";
+  $data = "  username: " . encode_base64($username, "") . "\n" .
+    "  password: " . encode_base64($password, "") . "\n";
   &createSecret("docker-hub-credentials", $data);
 
   print "Enter 'main' DB master password (same as deploy): ";
   chomp(my $dbMasterPassword = <>);
-  $data = "  password: " . encode_base64($dbMasterPassword);
+  $data = "  password: " . encode_base64($dbMasterPassword, "");
   &createSecret("main-db-master-password", $data);
 }
 
